@@ -1,47 +1,63 @@
 #!/bin/bash
 # Topic 13. Fetching images from a web page. 
 
-
-#IMPORTANT
-# MAKE SURE PARALLEISM WORKS
-
-#limit of parallel downloads
-limit=1
+# limit of parallel downloads
+limit=8
 
 downloadFile() {
     echo "Downloading $name"
-    curl -o $1 $2
+    curl -so $1 $2
     if [ $? -eq 0 ]
     then
-      echo "Downloading finished $name"
+      echo "Download finished $name"
     else
-      echo "Error. $name not downloaded"
+      echo "Error. Image not downloaded"
     fi
 }
 
 for i in $@
 do
+  # fetching paths to the images
   a=$(curl -s $i | tr -s '>' '\n' | grep '<img[^>]*src=".*".*' | sed 's/<img.*src="\([^"]*\)".*/\1/')
+  if [ $? -ne 0 ]
+  then
+    echo "Error when fetching the page: $i"
+    continue
+  fi
+
   for j in $a
   do
     echo "Found image URL: $j"
+    # get name of the img without the path
     name=$(echo $j | sed "s/.*\/\([^?]*\).*/\1/")
+
     find $name >/dev/null 2>&1
     if [ $? -eq 0 ]
     then
     echo "Already in the directory: $name"
       continue
     fi
-    echo $i $j
-    # something wrong here
-    j=$(echo $j | sed "s/^\//$i\//")
-    echo "TEST $name $j"
-    num=$(jobs | wc -l)
+
+    # if path is local then append url at the beggining
+    echo $j | grep "^/" > /dev/null
+    if [ $? -eq 0 ]
+    then
+      j=$(echo "$i$j")
+    fi
+
+    # find amount of running processes
+    num=$(ps -aux | grep "curl" | wc -l)
+    if [ $num -gt $limit ]
+    then
+      echo "Maximum number of parallel downloads achieved. Waiting..."
+    fi
     while [ $num -gt $limit ]
     do
-      echo "Maximum amount of concurrent downloads achieved. Waiting..."
-      sleep 1
+      num=$(ps -aux | grep "curl" | wc -l)
     done
-    downloadFile $name $j
+    downloadFile $name $j &
   done
 done
+
+# wait for all downloads to finish
+wait $!
