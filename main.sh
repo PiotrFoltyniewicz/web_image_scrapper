@@ -2,7 +2,7 @@
 # Topic 13. Fetching images from a web page. 
 
 # limit of parallel downloads
-limit=8
+limit=4
 
 downloadFile() {
     echo "Downloading $name"
@@ -17,13 +17,15 @@ downloadFile() {
 
 for i in $@
 do
-  # fetching paths to the images
-  a=$(curl -s $i | tr -s '>' '\n' | grep '<img[^>]*src=".*".*' | sed 's/<img.*src="\([^"]*\)".*/\1/')
+  # check if url is valid
+  curl -s $i > /dev/null
   if [ $? -ne 0 ]
   then
     echo "Error when fetching the page: $i"
     continue
   fi
+  # fetch image paths from the website
+  a=$(curl -s $i | tr -s '>' '\n' | grep '<img[^>]*src=".*".*' | sed 's/<img.*src="\([^"]*\)".*/\1/')
 
   for j in $a
   do
@@ -51,6 +53,7 @@ do
     then
       echo "Maximum number of parallel downloads achieved. Waiting..."
     fi
+
     while [ $num -gt $limit ]
     do
       num=$(ps -aux | grep "curl" | wc -l)
@@ -59,5 +62,5 @@ do
   done
 done
 
-# wait for all downloads to finish
+# wait for downloads to finish
 wait $!
