@@ -25,42 +25,38 @@ do
     continue
   fi
   # fetch image paths from the website
-  a=$(curl -s $i | tr -s '>' '\n' | grep '<img[^>]*src=".*".*' | sed 's/<img.*src="\([^"]*\)".*/\1/')
+  a=$(curl -s $i | tr -s '>' '\n' | sed -n 's/.*<img[^>]*src="\([^"]*\)".*/\1/p')
 
   for j in $a
   do
     echo "Found image URL: $j"
     # get name of the img without the path
-    name=$(echo $j | sed "s/.*\/\([^?]*\).*/\1/")
+    name=${j##*/}
 
-    find $name >/dev/null 2>&1
-    if [ $? -eq 0 ]
+    if [ -f "$name" ]
     then
     echo "Already in the directory: $name"
       continue
     fi
 
     # if path is local then append url at the beggining
-    echo $j | grep "^/" > /dev/null
-    if [ $? -eq 0 ]
+    if [ "${j:0:1}" = "/" ]
     then
       j=$(echo "$i$j")
     fi
 
     # find amount of running processes
-    num=$(ps -aux | grep "curl" | wc -l)
+    num=$(jobs -rp | wc -l)
     if [ $num -gt $limit ]
     then
       echo "Maximum number of parallel downloads achieved. Waiting..."
     fi
+    
+    wait -n
 
-    while [ $num -gt $limit ]
-    do
-      num=$(ps -aux | grep "curl" | wc -l)
-    done
     downloadFile $name $j &
   done
 done
 
 # wait for downloads to finish
-wait $!
+wait
